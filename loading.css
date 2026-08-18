@@ -1,0 +1,4 @@
+.table-wrap tr.row-saving{opacity:.58;background:#f7faff}
+.points-control button:disabled,.tier-select:disabled,.row-action:disabled{cursor:wait;opacity:.55}
+.button-spinner{display:inline-block;width:13px;height:13px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;vertical-align:-2px;animation:aircare-spin .7s linear infinite}
+@keyframes aircare-spin{to{transform:rotate(360deg)}}

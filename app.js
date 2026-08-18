@@ -14,6 +14,8 @@ function today() { return new Date().toISOString().slice(0, 10); }
 function formatDate(value) { if (!value) return "-"; const date = new Date(`${value}T00:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" }); }
 function daysUntil(value) { const end = new Date(`${value}T23:59:59`); return Math.ceil((end - new Date()) / 86400000); }
 function setStatus(message, error = false) { const node = $("#syncStatus"); node.textContent = message; node.style.color = error ? "#bd2531" : ""; }
+function setRowBusy(row, busy) { if (!row) return; row.classList.toggle("row-saving", busy); row.querySelectorAll("button, select").forEach(control => { control.disabled = busy; }); const action = row.querySelector(".row-action"); if (action) { action.innerHTML = busy ? '<span class="button-spinner" aria-hidden="true"></span> กำลังบันทึก' : "แก้ไข"; action.disabled = busy; } }
+function setButtonBusy(button, busy, label = "กำลังบันทึก…") { if (!button) return; if (busy) { button.dataset.originalLabel = button.textContent; button.innerHTML = '<span class="button-spinner" aria-hidden="true"></span> ' + label; button.disabled = true; } else { button.textContent = button.dataset.originalLabel || "บันทึกข้อมูล"; button.disabled = false; } }
 
 function demoCustomers() {
   const saved = localStorage.getItem("aircare-demo-customers");
@@ -79,11 +81,13 @@ $("#refreshButton").addEventListener("click", loadCustomers);
 $("#searchInput").addEventListener("input", event => { state.query = event.target.value; render(); });
 $("#newCustomerButton").addEventListener("click", () => openCustomerForm());
 $("#cancelFormButton").addEventListener("click", closeCustomerForm); $("#cancelFormButton2").addEventListener("click", closeCustomerForm);
-$("#customerForm").addEventListener("submit", async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const customer = Object.fromEntries(form.entries()); customer.points = Number(customer.points || 0); const error = $("#customerFormError"); try { await api("saveCustomer", { customer }); closeCustomerForm(); await loadCustomers(); } catch (err) { error.textContent = err.message; } });
+$("#customerForm").addEventListener("submit", async event => { event.preventDefault(); const form = new FormData(event.currentTarget); const customer = Object.fromEntries(form.entries()); customer.points = Number(customer.points || 0); const error = $("#customerFormError"); const submitButton = event.currentTarget.querySelector('button[type="submit"]'); setButtonBusy(submitButton, true); error.textContent = ""; try { await api("saveCustomer", { customer }); closeCustomerForm(); await loadCustomers(); } catch (err) { error.textContent = err.message; } finally { setButtonBusy(submitButton, false); } });
 $("#customerRows").addEventListener("click", async event => { const control = event.target.closest("[data-action]"); if (!control) return; const row = control.closest("tr"); const customer = state.customers.find(item => item.id === row.dataset.id); if (!customer) return;
-  try { if (control.dataset.action === "edit") openCustomerForm(customer); if (control.dataset.action === "point") { await api("pointDelta", { id: customer.id, delta: Number(control.dataset.delta) }); await loadCustomers(); } } catch (err) { setStatus(err.message, true); }
+  if (control.dataset.action === "edit") { openCustomerForm(customer); return; }
+  setRowBusy(row, true); setStatus("กำลังบันทึกการเปลี่ยนแปลง…");
+  try { if (control.dataset.action === "point") { await api("pointDelta", { id: customer.id, delta: Number(control.dataset.delta) }); await loadCustomers(); } } catch (err) { setRowBusy(row, false); setStatus(err.message, true); }
 });
-$("#customerRows").addEventListener("change", async event => { if (event.target.dataset.action !== "tier") return; const row = event.target.closest("tr"); const customer = state.customers.find(item => item.id === row.dataset.id); try { await api("saveCustomer", { customer: { ...customer, tier: event.target.value } }); await loadCustomers(); } catch (err) { setStatus(err.message, true); } });
+$("#customerRows").addEventListener("change", async event => { if (event.target.dataset.action !== "tier") return; const row = event.target.closest("tr"); const customer = state.customers.find(item => item.id === row.dataset.id); setRowBusy(row, true); setStatus("กำลังบันทึกระดับลูกค้า…"); try { await api("saveCustomer", { customer: { ...customer, tier: event.target.value } }); await loadCustomers(); } catch (err) { event.target.value = customer.tier; setRowBusy(row, false); setStatus(err.message, true); } });
 
 if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 if (DEMO) showApp({ username: "demo", name: "โหมดตัวอย่าง", role: "admin" });
